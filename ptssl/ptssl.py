@@ -246,7 +246,7 @@ def get_help():
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(add_help="False", description=f"{SCRIPTNAME} <options>")
     parser.add_argument("-u",  "--url",            type=str, required=True)
-    parser.add_argument("-ts",  "--tests",         type=lambda s: s.lower(), nargs="+")
+    parser.add_argument("-ts", "--tests",         type=lambda s: s.lower(), nargs="+")
     parser.add_argument("-t",  "--threads",        type=int, default=10)
     parser.add_argument("-j",  "--json",           action="store_true")
     parser.add_argument("-v",  "--version",        action='version', version=f'{SCRIPTNAME} {__version__}')
@@ -261,8 +261,6 @@ def parse_args() -> argparse.Namespace:
 
     args = parser.parse_args()
     args.url = urlunparse(urlparse(args.url)._replace(path='', params='', query='', fragment=''))
-    args.headers = ptnethelper.get_request_headers(args)
-    args.proxy = {"http": args.proxy, "https": args.proxy} if args.proxy else {}
 
     print_banner(SCRIPTNAME, __version__, args.json, 0)
     return args
