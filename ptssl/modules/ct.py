@@ -1,3 +1,16 @@
+"""
+Cipher Test – detects insecure cipher use
+Analyses the `ciphers` section of a testssl JSON report to tell
+whether the target server still offers weak or vulnerable ciphers.
+
+Contains:
+- CT class for performing the detection test.
+- run() function as an entry point for running the test.
+
+Usage:
+    run(args, ptjsonlib)
+"""
+
 from ptlibs import ptjsonlib
 from ptlibs.ptprinthelper import ptprint
 
@@ -5,6 +18,12 @@ __TESTLABEL__ = "Testing for supported ciphers:"
 
 
 class CT:
+    """
+    CT checks whether the server offers only strong and safe ciphers.
+
+    It consumes the JSON output from testssl and flags any insecure or weak ciphers.
+    """
+
     CIPHER_SEC_LEN = 8
     ERROR_NUM = -1
 
@@ -15,6 +34,9 @@ class CT:
         self.testssl_result = testssl_result
 
     def _find_section_ct(self) -> int:
+        """
+        Runs through JSON file and finds strat of cipher section.
+        """
         id_number = 0
         for item in self.testssl_result:
             if item["id"] == "cipherlist_NULL":
@@ -23,6 +45,13 @@ class CT:
         return self.ERROR_NUM
 
     def _print_test_result(self) -> None:
+        """
+        Finds starting id of cipher section.
+        Goes through the section and prints out potential vulnerabilities.
+        1) OK
+        2) INFO - prints warning information
+        3) VULN - prints out vulnerable protocol versions
+        """
         id_section = self._find_section_ct()
         if id_section == self.ERROR_NUM:
             self.ptjsonlib.end_error("testssl could not provide cipher list section", self.args.json)
