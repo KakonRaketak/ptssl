@@ -23,6 +23,8 @@ import threading
 import subprocess
 import shutil
 import tempfile
+import itertools
+import time
 import json
 import sys; sys.path.append(__file__.rsplit("/", 1)[0])
 
@@ -31,7 +33,7 @@ from types import ModuleType
 from urllib.parse import urlparse, urlunparse
 
 from ptlibs import ptjsonlib, ptmisclib, ptnethelper
-from ptlibs.ptprinthelper import ptprint, print_banner, help_print
+from ptlibs.ptprinthelper import ptprint, print_banner, help_print, get_colored_text
 from ptlibs.threads import ptthreads, printlock
 from ptlibs.http.http_client import HttpClient
 
@@ -94,17 +96,39 @@ class PtSSL:
         with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as tmpfile:
             json_path = tmpfile.name
 
+        def spinner_func(stop_event):
+            spinner = itertools.cycle(["|", "/", "-", "\\"])
+            spinner_dots = itertools.cycle(["."] * 5 + [".."] * 6 + ["..."] * 7)
+            if not self.args.json:
+                sys.stdout.write("\033[?25l")  # Hide cursor
+                sys.stdout.flush()
+            while not stop_event.is_set():
+                ptprint(get_colored_text(f"[{next(spinner)}] ", "TITLE") + f"Testssl is running, please wait {next(spinner_dots)}", "TEXT", not self.args.json, end="\r", flush=True, clear_to_eol=True, colortext="TITLE")
+                time.sleep(0.1)
+            ptprint(" ", "TEXT", not self.args.json, flush=True, clear_to_eol=True)
+
+        stop_spinner = threading.Event()
+        spinner_thread = threading.Thread(target=spinner_func, args=(stop_spinner,))
+        ptprint(f" ", "TEXT", not self.args.json, end="\n", flush=True, clear_to_eol=True)
+        spinner_thread.start()
+
         try:
             subprocess.run(
                 ["testssl", "--jsonfile", json_path, "--logfile", "/dev/stdout", url],
-                check=True
+                check=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL
             )
+
             with open(json_path, "r") as f:
                 result = json.load(f)
 
             return result
 
         finally:
+            sys.stdout.write("\033[?25h")  # Show cursor
+            stop_spinner.set()
+            spinner_thread.join()
             if os.path.exists(json_path):
                 os.remove(json_path)
 
