@@ -1,4 +1,15 @@
+"""
+Cipher Order Test – detects if server has no cipher order
+Analyses the JSON report to tell
+whether the target server offers cipher order or not.
 
+Contains:
+- PCT class for performing the detection test.
+- run() function as an entry point for running the test.
+
+Usage:
+    run(args, ptjsonlib)
+"""
 
 from ptlibs import ptjsonlib
 from ptlibs.ptprinthelper import ptprint
@@ -7,6 +18,11 @@ __TESTLABEL__ = "Testing who gives order of ciphers:"
 
 
 class PCT:
+    """
+    PCT checks whether the server selects order of cipher for communication or client.
+
+    It consumes the JSON output from testssl and flags if server has no order of ciphers.
+    """
 
     CIPHER_SEC_LEN = 8
     ERROR_NUM = -1
@@ -19,7 +35,7 @@ class PCT:
 
     def _find_section_ct(self) -> int:
         """
-        Runs through JSON file and finds strat of cipher order section.
+        Runs through JSON file and finds strat of "cipher order" section.
         """
         id_number = 0
         for item in self.testssl_result:
