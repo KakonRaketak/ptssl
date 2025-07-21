@@ -22,7 +22,7 @@ setuptools.setup(
         "License :: OSI Approved :: GNU General Public License v3 (GPLv3)"
     ],
     python_requires='>=3.12',
-    install_requires=["ptlibs>=1.0.31,<2", ],
+    install_requires=["ptlibs>=1.0.33,<2", ],
     entry_points = {'console_scripts': ['ptssl = ptssl.ptssl:main']},
     include_package_data= True,
     long_description=long_description,
