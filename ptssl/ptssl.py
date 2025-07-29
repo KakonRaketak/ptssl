@@ -66,27 +66,29 @@ class PtSSL:
         self.ptjsonlib.set_status("finished")
         ptprint(self.ptjsonlib.get_result_json(), "", self.args.json)
 
-
     def _run_testssl(self, url) -> None:
         """
-        Runs testssl.sh against the specified target host with JSON output.
+        Executes testssl.sh against the specified target URL and returns the parsed JSON results.
 
-        Checks if 'testssl' is available in the system PATH or current directory.
-        If not found, calls self.ptjsonlib.end_error() with an installation hint and aborts.
-
-        The function runs testssl.sh with '--jsonfile' directed to a temporary file and
-        '--logfile -' to show live CLI output. After completion, it reads the JSON result
-        into memory, deletes the temp file, and returns the parsed JSON data.
+        This method performs the following steps:
+        - Checks if 'testssl' is available in the system PATH. If not, it calls `self.ptjsonlib.end_error()`
+        with an installation hint and aborts.
+        - Runs `testssl.sh` with JSON output directed to a temporary file (`--jsonfile`).
+        - Shows live CLI output either as a spinner or verbosely depending on `self.args.verbose`.
+        - Reads the JSON results from the temporary file into memory.
+        - Cleans up the temporary JSON file and stops the spinner if running.
+        - Returns the parsed JSON data.
 
         Args:
-            target (str): The target hostname or IP address to scan.
+            url (str): The target hostname or IP address to scan.
 
         Returns:
-            dict: Parsed JSON results from testssl.sh.
+            dict: Parsed JSON output from testssl.sh.
 
         Raises:
-            subprocess.CalledProcessError: If the testssl.sh command fails.
+            subprocess.CalledProcessError: If the testssl.sh subprocess fails.
         """
+
         if not shutil.which("testssl"):
             self.ptjsonlib.end_error(
                 "testssl.sh is not installed or not found in PATH. Please install it first via `sudo apt install testssl.sh`.",
@@ -107,17 +109,22 @@ class PtSSL:
                 time.sleep(0.1)
             ptprint(" ", "TEXT", not self.args.json, flush=True, clear_to_eol=True)
 
-        stop_spinner = threading.Event()
-        spinner_thread = threading.Thread(target=spinner_func, args=(stop_spinner,))
-        ptprint(f" ", "TEXT", not self.args.json, end="\n", flush=True, clear_to_eol=True)
-        spinner_thread.start()
+        if self.args.verbose:
+            ptprint(f"Testssl is running, please wait:", "TITLE", not self.args.json, flush=True, clear_to_eol=True, colortext=True, end="")
+        else:
+            stop_spinner = threading.Event()
+            spinner_thread = threading.Thread(target=spinner_func, args=(stop_spinner,))
+            ptprint(f" ", "TEXT", not self.args.json, end="\n", flush=True, clear_to_eol=True)
+            spinner_thread.start()
 
         try:
             subprocess.run(
                 ["testssl", "--jsonfile", json_path, "--logfile", "/dev/stdout", url],
                 check=True,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL
+                bufsize=1,
+                universal_newlines=True,
+                stdout=sys.stdout if self.args.verbose else subprocess.DEVNULL,
+                stderr=sys.stderr if self.args.verbose else subprocess.DEVNULL
             )
 
             with open(json_path, "r") as f:
@@ -127,10 +134,11 @@ class PtSSL:
 
         finally:
             sys.stdout.write("\033[?25h")  # Show cursor
-            stop_spinner.set()
-            spinner_thread.join()
             if os.path.exists(json_path):
                 os.remove(json_path)
+            if not self.args.verbose:
+                stop_spinner.set()
+                spinner_thread.join()
 
     def run_single_module(self, module_name: str) -> None:
         """
@@ -261,6 +269,7 @@ def get_help():
             *_get_available_modules_help(),
             ["", "", "", ""],
             ["-t",  "--threads",                "<threads>",        "Set thread count (default 10)"],
+            ["-vv", "--verbose",                "",                 "Show verbose output"],
             ["-v",  "--version",                "",                 "Show script version and exit"],
             ["-h",  "--help",                   "",                 "Show this help message and exit"],
             ["-j",  "--json",                   "",                 "Output in JSON format"],
@@ -270,8 +279,9 @@ def get_help():
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(add_help="False", description=f"{SCRIPTNAME} <options>")
     parser.add_argument("-u",  "--url",            type=str, required=True)
-    parser.add_argument("-ts", "--tests",         type=lambda s: s.lower(), nargs="+")
+    parser.add_argument("-ts", "--tests",          type=lambda s: s.lower(), nargs="+")
     parser.add_argument("-t",  "--threads",        type=int, default=10)
+    parser.add_argument("-vv", "--verbose",        action="store_true")
     parser.add_argument("-j",  "--json",           action="store_true")
     parser.add_argument("-v",  "--version",        action='version', version=f'{SCRIPTNAME} {__version__}')
 
