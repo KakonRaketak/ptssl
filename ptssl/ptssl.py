@@ -253,7 +253,7 @@ def get_help():
         for module in available_modules:
             mod = _import_module_from_path(module)
             label = getattr(mod, "__TESTLABEL__", f"Test for {module.upper()}")
-            row = ["", "", f" {module.upper()}", label]
+            row = ["", "", f" {module.upper()}", label.rstrip(':')]
             rows.append(row)
         return sorted(rows, key=lambda x: x[2])
 
