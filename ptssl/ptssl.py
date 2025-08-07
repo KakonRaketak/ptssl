@@ -333,13 +333,12 @@ def parse_args() -> argparse.Namespace:
 
     args = parser.parse_args()
 
-    if args.url.startswith("http://"):
+    if args.url.startswith("https://"):
         ptjsonlib.PtJsonLib().end_error("The provided URL uses plain HTTP, which is not secured by SSL/TLS.",
         details="This tool is designed to test SSL/TLS configurations on HTTPS (SSL-secured) endpoints only.",
         condition=args.json)
 
-    if args.url.startswith("https://"):
-        args.url = urlunparse(urlparse(args.url)._replace(path='', params='', query='', fragment=''))
+    args.url = urlunparse(urlparse(args.url)._replace(path='', params='', query='', fragment=''))
 
     print_banner(SCRIPTNAME, __version__, args.json, 0)
     return args
