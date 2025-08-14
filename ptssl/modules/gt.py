@@ -14,7 +14,7 @@ Usage:
 from ptlibs import ptjsonlib
 from ptlibs.ptprinthelper import ptprint
 
-__TESTLABEL__ = "Testing for supported ciphers:"
+__TESTLABEL__ = "Testing for bugs:"
 
 
 class GT:
