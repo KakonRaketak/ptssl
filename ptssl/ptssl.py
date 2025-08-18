@@ -22,8 +22,10 @@ import os
 import threading
 import subprocess
 import shutil
-import tempfile
+import itertools
+import time
 import json
+import hashlib
 import sys; sys.path.append(__file__.rsplit("/", 1)[0])
 
 from io import StringIO
@@ -31,7 +33,7 @@ from types import ModuleType
 from urllib.parse import urlparse, urlunparse
 
 from ptlibs import ptjsonlib, ptmisclib, ptnethelper
-from ptlibs.ptprinthelper import ptprint, print_banner, help_print
+from ptlibs.ptprinthelper import ptprint, print_banner, help_print, get_colored_text
 from ptlibs.threads import ptthreads, printlock
 from ptlibs.http.http_client import HttpClient
 
@@ -67,46 +69,114 @@ class PtSSL:
 
     def _run_testssl(self, url) -> None:
         """
-        Runs testssl.sh against the specified target host with JSON output.
+        Executes testssl.sh scan against the specified URL and returns parsed JSON results.
 
-        Checks if 'testssl' is available in the system PATH or current directory.
-        If not found, calls self.ptjsonlib.end_error() with an installation hint and aborts.
-
-        The function runs testssl.sh with '--jsonfile' directed to a temporary file and
-        '--logfile -' to show live CLI output. After completion, it reads the JSON result
-        into memory, deletes the temp file, and returns the parsed JSON data.
+        Workflow:
+        - Checks if a cached JSON result file exists (based on an MD5 hash of the URL) and is fresh (not older than 30 minutes).
+        If a valid cache is found, loads and returns it without re-running testssl.sh.
+        - If no valid cache exists, verifies that `testssl` is available in PATH, otherwise aborts with an error.
+        - Removes any stale temporary cache file before running testssl.sh to avoid conflicts.
+        - Runs testssl.sh with JSON output directed to a temporary cache file.
+        - Shows live CLI output as a spinner or verbose output depending on the verbosity setting.
+        - On success, reads JSON results from the temporary file, atomically replaces the final cache file,
+        and returns the parsed data.
+        - On subprocess error, reports via `end_error`.
+        - Ensures the cursor is shown again and spinner thread is stopped when done.
 
         Args:
-            target (str): The target hostname or IP address to scan.
+            url (str): Target hostname or IP address to scan.
 
         Returns:
-            dict: Parsed JSON results from testssl.sh.
+            dict: Parsed JSON output from testssl.sh.
 
         Raises:
-            subprocess.CalledProcessError: If the testssl.sh command fails.
+            subprocess.CalledProcessError: If the testssl.sh subprocess fails.
         """
+        cache_dir = ptmisclib.get_penterep_temp_dir()
+        os.makedirs(cache_dir, exist_ok=True)
+
+        hash_name = hashlib.md5(url.encode("utf-8")).hexdigest()
+        final_cache_file = os.path.join(cache_dir, f"{hash_name}.json")
+        temp_cache_file = final_cache_file + ".tmp"
+
+        CACHE_EXPIRY_SECONDS = 30 * 60 # 30 mins
+
+        def load_valid_cache(path, max_age_seconds):
+            if not os.path.exists(path):
+                return None
+            try:
+                if (time.time() - os.path.getmtime(path)) > max_age_seconds:
+                    raise ValueError("Cache expired")
+                with open(path, "r") as f:
+                    return json.load(f)
+            except Exception:
+                try:
+                    os.remove(path)
+                except Exception:
+                    pass
+                return None
+
+        cached_result = load_valid_cache(final_cache_file, CACHE_EXPIRY_SECONDS)
+        if cached_result is not None:
+            return cached_result
+
         if not shutil.which("testssl"):
             self.ptjsonlib.end_error(
                 "testssl.sh is not installed or not found in PATH. Please install it first via `sudo apt install testssl.sh`.",
                 self.args.json)
             return
 
-        with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as tmpfile:
-            json_path = tmpfile.name
+        def spinner_func(stop_event):
+            spinner = itertools.cycle(["|", "/", "-", "\\"])
+            spinner_dots = itertools.cycle(["."] * 5 + [".."] * 6 + ["..."] * 7)
+            if not self.args.json:
+                sys.stdout.write("\033[?25l")  # Hide cursor
+                sys.stdout.flush()
+            while not stop_event.is_set():
+                ptprint(get_colored_text(f"[{next(spinner)}] ", "TITLE") + f"Testssl is running, please wait {next(spinner_dots)}", "TEXT", not self.args.json, end="\r", flush=True, clear_to_eol=True, colortext="TITLE")
+                time.sleep(0.1)
+            ptprint(" ", "TEXT", not self.args.json, flush=True, clear_to_eol=True)
+
+        if self.args.verbose:
+            ptprint(f"Testssl is running, please wait:", "TITLE", not self.args.json, flush=True, clear_to_eol=True, colortext=True, end="")
+            sys.stdout.write("\033[?25l")  # Hide cursor
+        else:
+            stop_spinner = threading.Event()
+            spinner_thread = threading.Thread(target=spinner_func, args=(stop_spinner,))
+            ptprint(f" ", "TEXT", not self.args.json, end="\n", flush=True, clear_to_eol=True)
+            spinner_thread.start()
 
         try:
+            if os.path.exists(temp_cache_file):
+                try:
+                    os.remove(temp_cache_file)
+                except Exception:
+                    pass
+
             subprocess.run(
-                ["testssl", "--jsonfile", json_path, "--logfile", "/dev/stdout", url],
-                check=True
+                ["testssl", "--jsonfile", temp_cache_file, "--logfile", "/dev/stdout", url],
+                check=True,
+                bufsize=1,
+                universal_newlines=True,
+                stdout=sys.stdout if self.args.verbose else subprocess.DEVNULL,
+                stderr=sys.stderr if self.args.verbose else subprocess.DEVNULL
             )
-            with open(json_path, "r") as f:
+
+            with open(temp_cache_file, "r") as f:
                 result = json.load(f)
+
+            os.replace(temp_cache_file, final_cache_file)
 
             return result
 
+        except subprocess.CalledProcessError as e:
+            self.ptjsonlib.end_error("testssl.sh raised exception:", details=e, condition=self.args.json)
+
         finally:
-            if os.path.exists(json_path):
-                os.remove(json_path)
+            sys.stdout.write("\033[?25h")  # Show cursor
+            if not self.args.verbose:
+                stop_spinner.set()
+                spinner_thread.join()
 
     def run_single_module(self, module_name: str) -> None:
         """
@@ -221,7 +291,7 @@ def get_help():
         for module in available_modules:
             mod = _import_module_from_path(module)
             label = getattr(mod, "__TESTLABEL__", f"Test for {module.upper()}")
-            row = ["", "", f" {module.upper()}", label]
+            row = ["", "", f" {module.upper()}", label.rstrip(':')]
             rows.append(row)
         return sorted(rows, key=lambda x: x[2])
 
@@ -237,6 +307,7 @@ def get_help():
             *_get_available_modules_help(),
             ["", "", "", ""],
             ["-t",  "--threads",                "<threads>",        "Set thread count (default 10)"],
+            ["-vv", "--verbose",                "",                 "Show verbose output"],
             ["-v",  "--version",                "",                 "Show script version and exit"],
             ["-h",  "--help",                   "",                 "Show this help message and exit"],
             ["-j",  "--json",                   "",                 "Output in JSON format"],
@@ -246,8 +317,9 @@ def get_help():
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(add_help="False", description=f"{SCRIPTNAME} <options>")
     parser.add_argument("-u",  "--url",            type=str, required=True)
-    parser.add_argument("-ts", "--tests",         type=lambda s: s.lower(), nargs="+")
+    parser.add_argument("-ts", "--tests",          type=lambda s: s.lower(), nargs="+")
     parser.add_argument("-t",  "--threads",        type=int, default=10)
+    parser.add_argument("-vv", "--verbose",        action="store_true")
     parser.add_argument("-j",  "--json",           action="store_true")
     parser.add_argument("-v",  "--version",        action='version', version=f'{SCRIPTNAME} {__version__}')
 
@@ -260,6 +332,12 @@ def parse_args() -> argparse.Namespace:
         sys.exit(0)
 
     args = parser.parse_args()
+
+    if not args.url.startswith("https://"):
+        ptjsonlib.PtJsonLib().end_error("The provided URL uses plain HTTP, which is not secured by SSL/TLS.",
+        details="This tool is designed to test SSL/TLS configurations on HTTPS (SSL-secured) endpoints only.",
+        condition=args.json)
+
     args.url = urlunparse(urlparse(args.url)._replace(path='', params='', query='', fragment=''))
 
     print_banner(SCRIPTNAME, __version__, args.json, 0)

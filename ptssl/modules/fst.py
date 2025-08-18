@@ -14,8 +14,8 @@ Usage:
 from ptlibs import ptjsonlib
 from ptlibs.ptprinthelper import ptprint
 
-__TESTLABEL__ = "Testing if Forward Security is offered:"
 
+__TESTLABEL__ = "Testing if Forward Security is offered:"
 
 class FST:
     """
