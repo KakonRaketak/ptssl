@@ -1,10 +1,10 @@
 """
-Forward Security Test – detects when server does not use FS.
-Analyses the FS item of a testssl JSON report to tell
-whether the target server offers FS or not.
+HTTP Strict Transport Security Test – checks if it is offered.
+Analyses the HSTS item of a testssl JSON report to tell
+whether the target server offers HSTS or not.
 
 Contains:
-- FST class for performing the detection test.
+- HSTST class for performing the detection test.
 - run() function as an entry point for running the test.
 
 Usage:
@@ -14,14 +14,14 @@ Usage:
 from ptlibs import ptjsonlib
 from ptlibs.ptprinthelper import ptprint
 
+__TESTLABEL__ = "Testing if HSTS is offered:"
 
-__TESTLABEL__ = "Testing if Forward Security is offered:"
 
-class FST:
+class HSTST:
     """
-    FST checks whether the server offers FS or not.
+    HSTST checks if HSTS is offered.
 
-    It consumes the JSON output from testssl and check if FS is offered.
+    It consumes the JSON output from testssl and check if HSTS is offered.
     """
     ERROR_NUM = -1
 
@@ -31,39 +31,39 @@ class FST:
         self.helpers = helpers
         self.testssl_result = testssl_result
 
-    def _find_fs(self) -> int:
+    def _find_grease(self) -> int:
         """
-        Runs through JSON file and finds FS item.
+        Runs through JSON file and finds HSTS item.
         """
         id_number = 0
         for item in self.testssl_result:
-            if item["id"] == "FS":
+            if   "HSTS" in item["id"]:
                 return id_number
             id_number += 1
         return self.ERROR_NUM
 
     def _print_test_result(self) -> None:
         """
-        Finds FS item.
-        Flags if the FS is offered or not.
+        Finds HSTS item.
+        Flags if not offered.
         1) OK
         2) INFO - prints warning information
         3) VULN - prints out vulnerable protocol versions
         """
-        id_fs = self._find_fs()
-        if id_fs == self.ERROR_NUM:
+        id_grease = self._find_grease()
+        if id_grease == self.ERROR_NUM:
             self.ptjsonlib.end_error("testssl could not provide cipher list section", self.args.json)
             return
-        item = self.testssl_result[id_fs]
+        item = self.testssl_result[id_grease]
 
         if item["severity"] == "OK":
-            ptprint(f"{item["id"]:<5}  {item["finding"]}", "OK", not self.args.json, indent=4)
+            ptprint(f"HSTS  offered", "OK", not self.args.json, indent=4)
         elif item["severity"] == "INFO":
-            ptprint(f"{item["id"]:<5}  {item["finding"]}", "WARNING", not self.args.json, indent=4)
+            ptprint(f"HSTS  {item["finding"]}", "WARNING", not self.args.json, indent=4)
             self.ptjsonlib.add_vulnerability(
                 f'PTV-WEB-MISC-{''.join(ch for ch in item["id"] if ch.isalnum()).upper()}')
         else:
-            ptprint(f"{item["id"]:<5}  {item["finding"]}", "VULN", not self.args.json, indent=4)
+            ptprint(f"HSTS  {item["finding"]}", "VULN", not self.args.json, indent=4)
             self.ptjsonlib.add_vulnerability(
                 f'PTV-WEB-MISC-{''.join(ch for ch in item["id"] if ch.isalnum()).upper()}')
         return
@@ -80,5 +80,5 @@ class FST:
 
 
 def run(args, ptjsonlib, helpers, testssl_result):
-    """Entry point for running the FST module (Forward Security Test)."""
-    FST(args, ptjsonlib, helpers, testssl_result).run()
+    """Entry point for running the HSTST module (HTTP Strict Transport Security Test)."""
+    HSTST(args, ptjsonlib, helpers, testssl_result).run()
