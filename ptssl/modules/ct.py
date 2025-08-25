@@ -33,7 +33,7 @@ class CT:
         self.helpers = helpers
         self.testssl_result = testssl_result
 
-    def _find_section_ct(self) -> int:
+    def _find_section_c(self) -> int:
         """
         Runs through JSON file and finds strat of cipher section.
         """
@@ -50,11 +50,11 @@ class CT:
         Goes through the section and prints out potential vulnerabilities.
         1) OK
         2) INFO - prints warning information
-        3) VULN - prints out vulnerable protocol versions
+        3) VULN - prints out vulnerabilities
         """
-        id_section = self._find_section_ct()
+        id_section = self._find_section_c()
         if id_section == self.ERROR_NUM:
-            self.ptjsonlib.end_error("testssl could not provide cipher list section", self.args.json)
+            self.ptjsonlib.end_error("testssl could not provide cipher section", self.args.json)
             return
 
         for item in self.testssl_result[id_section:id_section + self.CIPHER_SEC_LEN]:

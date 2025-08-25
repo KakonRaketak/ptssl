@@ -46,7 +46,7 @@ class TSD:
         self.helpers = helpers
         self.testssl_result = testssl_result
 
-    def _find_section_ct(self) -> int:
+    def _find_section_tsd(self) -> int:
         """
         Runs through JSON file and finds strat of "server defaults" section.
         """
@@ -63,11 +63,11 @@ class TSD:
         Goes through the section using list of IDs and prints out potential vulnerabilities.
         1) OK
         2) INFO - prints warning information
-        3) VULN - prints out vulnerable protocol versions
+        3) VULN - prints out vulnerabilities
         """
-        id_section = self._find_section_ct()
+        id_section = self._find_section_tsd()
         if id_section == self.ERROR_NUM:
-            self.ptjsonlib.end_error("testssl could not provide cipher list section", self.args.json)
+            self.ptjsonlib.end_error("testssl could not provide server's default section", self.args.json)
             return
 
         id_of_vulnerability = [self.CERT_SIG_ALGO, self.CERT_KEY_SIZE, self.CERT_CHAIN_OF_TRUST, self.CERT_TRUST,

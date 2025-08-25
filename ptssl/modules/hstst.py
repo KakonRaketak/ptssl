@@ -31,7 +31,7 @@ class HSTST:
         self.helpers = helpers
         self.testssl_result = testssl_result
 
-    def _find_grease(self) -> int:
+    def _find_section_hsts(self) -> int:
         """
         Runs through JSON file and finds HSTS item.
         """
@@ -48,11 +48,11 @@ class HSTST:
         Flags if not offered.
         1) OK
         2) INFO - prints warning information
-        3) VULN - prints out vulnerable protocol versions
+        3) VULN - prints out vulnerabilities
         """
-        id_grease = self._find_grease()
+        id_grease = self._find_section_hsts()
         if id_grease == self.ERROR_NUM:
-            self.ptjsonlib.end_error("testssl could not provide cipher list section", self.args.json)
+            self.ptjsonlib.end_error("testssl could not provide HSTS section", self.args.json)
             return
         item = self.testssl_result[id_grease]
 

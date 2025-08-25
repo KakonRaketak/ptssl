@@ -32,7 +32,7 @@ class BVT:
         self.helpers = helpers
         self.testssl_result = testssl_result
 
-    def _find_section_ct(self) -> int:
+    def _find_section_bv(self) -> int:
         """
         Runs through JSON file and finds strat of cipher section.
         """
@@ -51,13 +51,13 @@ class BVT:
         2) INFO - prints warning information
         3) VULN - prints out vulnerabilities
         """
-        id_section = self._find_section_ct()
+        id_section = self._find_section_bv()
         if id_section == self.ERROR_NUM:
             self.ptjsonlib.end_error("testssl could not provide vulnerability section", self.args.json)
             return
 
         for item in self.testssl_result[id_section:id_section + self.VULN_SEC_LEN]:
-            if item["id"] == "DROWN_hint":
+            if item["id"] == "DROWN_hint" or item["id"] == "LOGJAM-common_primes":
                 continue
             if item["severity"] == "OK":
                 if item["id"] == "fallback_SCSV" or item["id"] == "secure_renego":
