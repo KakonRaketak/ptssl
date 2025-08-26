@@ -52,20 +52,21 @@ class GT:
         """
         id_grease = self._find_section_g()
         if id_grease == self.ERROR_NUM:
-            self.ptjsonlib.end_error("testssl could not provide grease section", self.args.json)
+            ptprint("testssl could not provide grease section", "WARNING", not self.args.json, indent=4)
             return
         item = self.testssl_result[id_grease]
 
         if item["severity"] == "OK":
-            ptprint(f"{item["id"]:<8}  {item["finding"]}", "OK", not self.args.json, indent=4)
+            ptprint(f"{item['id']:<8}  {item['finding']}", "OK", not self.args.json, indent=4)
         elif item["severity"] == "INFO":
-            ptprint(f"{item["id"]:<8}  {item["finding"]}", "WARNING", not self.args.json, indent=4)
+            ptprint(f"{item['id']:<8}  {item['finding']}", "WARNING", not self.args.json, indent=4)
             self.ptjsonlib.add_vulnerability(
-                f'PTV-WEB-MISC-{''.join(ch for ch in item["id"] if ch.isalnum()).upper()}')
+                f"PTV-WEB-MISC-{''.join(ch for ch in item['id'] if ch.isalnum()).upper()}")
+
         else:
-            ptprint(f"{item["id"]:<8}  {item["finding"]}", "VULN", not self.args.json, indent=4)
+            ptprint(f"{item['id']:<8}  {item['finding']}", "VULN", not self.args.json, indent=4)
             self.ptjsonlib.add_vulnerability(
-                f'PTV-WEB-MISC-{''.join(ch for ch in item["id"] if ch.isalnum()).upper()}')
+                f"PTV-WEB-MISC-{''.join(ch for ch in item['id'] if ch.isalnum()).upper()}")
         return
 
 
