@@ -208,7 +208,7 @@ class PtSSL:
                     )
 
                 except Exception as e:
-                    print(e)
+                    ptprint(e, "ERROR", not self.args.json)
                     error = e
                 else:
                     error = None
