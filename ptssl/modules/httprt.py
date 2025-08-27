@@ -60,12 +60,10 @@ class HTTPRT:
             ptprint(f"HTTP redirect to HTTPS:   OK", "OK", not self.args.json, indent=4)
         elif "302" in item["finding"] or "303" in item["finding"] or "307" in item["finding"]:
             ptprint(f"HTTP redirect to HTTPS:   TEMPORARY (not fully secured)", "WARNING", not self.args.json, indent=4)
-            self.ptjsonlib.add_vulnerability(
-                f'PTV-WEB-MISC-{''.join(ch for ch in item["id"] if ch.isalnum()).upper()}')
+            self.ptjsonlib.add_vulnerability(f'PTV-WEB-MISC-{''.join(ch for ch in item["id"] if ch.isalnum()).upper()}')
         else:
             ptprint(f"HTTP redirect to HTTPS:   NO REDIRECTION", "VULN", not self.args.json, indent=4)
-            self.ptjsonlib.add_vulnerability(
-                f'PTV-WEB-MISC-{''.join(ch for ch in item["id"] if ch.isalnum()).upper()}')
+            self.ptjsonlib.add_vulnerability(f'PTV-WEB-MISC-{''.join(ch for ch in item["id"] if ch.isalnum()).upper()}')
         return
 
 
