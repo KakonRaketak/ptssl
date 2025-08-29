@@ -23,6 +23,8 @@ class PT:
 
     It consumes the JSON output from testssl and flags any insecure protocol versions.
     """
+    PRO_SEC_LEN = 6
+    ERROR_NUM = -1
 
     def __init__(self, args: object, ptjsonlib: object, helpers: object, testssl_result: dict) -> None:
         self.args = args
@@ -30,14 +32,32 @@ class PT:
         self.helpers = helpers
         self.testssl_result = testssl_result
 
+    def _find_section_p(self) -> int:
+        """
+        Runs through JSON file and finds start of "cipher order" section.
+        """
+        id_number = 0
+        for item in self.testssl_result:
+            if item["id"] == "SSLv2":
+                return id_number
+            id_number += 1
+        return self.ERROR_NUM
+
+
     def _print_test_result(self) -> None:
         """
         Looks at every protocol report from testssl JSON output.
+        Goes through the section and prints out potential vulnerabilities.
         1) OK
         2) INFO - prints warning information
-        3) VULN - prints out vulnerable protocol versions
+        3) VULN - prints out vulnerabilities
         """
-        for item in self.testssl_result[3:9]:
+        id_section = self._find_section_p()
+        if id_section == self.ERROR_NUM:
+            self.ptjsonlib.end_error("testssl could not provide protocol section", self.args.json)
+            return
+
+        for item in self.testssl_result[id_section:id_section + self.PRO_SEC_LEN]:
             if item["severity"] == "OK":
                 ptprint(f"{item["id"]:<7}  {item["finding"]}", "OK", not self.args.json, indent=4)
             elif item["severity"] == "INFO":

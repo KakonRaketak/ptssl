@@ -33,9 +33,9 @@ class PCT:
         self.helpers = helpers
         self.testssl_result = testssl_result
 
-    def _find_section_ct(self) -> int:
+    def _find_section_pc(self) -> int:
         """
-        Runs through JSON file and finds strat of "cipher order" section.
+        Runs through JSON file and finds start of "cipher order" section.
         """
         id_number = 0
         for item in self.testssl_result:
@@ -50,11 +50,11 @@ class PCT:
         Goes through the section and prints out potential vulnerabilities.
         1) OK
         2) INFO - prints warning information
-        3) VULN - prints out vulnerable protocol versions
+        3) VULN - prints out vulnerabilities
         """
-        id_section = self._find_section_ct()
+        id_section = self._find_section_pc()
         if id_section == self.ERROR_NUM:
-            self.ptjsonlib.end_error("testssl could not provide cipher list section", self.args.json)
+            self.ptjsonlib.end_error("testssl could not provide cipher order section", self.args.json)
             return
 
         item = self.testssl_result[id_section]

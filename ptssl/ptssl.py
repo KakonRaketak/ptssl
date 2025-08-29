@@ -27,10 +27,13 @@ import time
 import json
 import hashlib
 import sys; sys.path.append(__file__.rsplit("/", 1)[0])
+import fcntl
+import uuid
 
 from io import StringIO
 from types import ModuleType
 from urllib.parse import urlparse, urlunparse
+from contextlib import contextmanager
 
 from ptlibs import ptjsonlib, ptmisclib, ptnethelper
 from ptlibs.ptprinthelper import ptprint, print_banner, help_print, get_colored_text
@@ -92,15 +95,6 @@ class PtSSL:
         Raises:
             subprocess.CalledProcessError: If the testssl.sh subprocess fails.
         """
-        cache_dir = ptmisclib.get_penterep_temp_dir()
-        os.makedirs(cache_dir, exist_ok=True)
-
-        hash_name = hashlib.md5(url.encode("utf-8")).hexdigest()
-        final_cache_file = os.path.join(cache_dir, f"{hash_name}.json")
-        temp_cache_file = final_cache_file + ".tmp"
-
-        CACHE_EXPIRY_SECONDS = 30 * 60 # 30 mins
-
         def load_valid_cache(path, max_age_seconds):
             if not os.path.exists(path):
                 return None
@@ -116,16 +110,6 @@ class PtSSL:
                     pass
                 return None
 
-        cached_result = load_valid_cache(final_cache_file, CACHE_EXPIRY_SECONDS)
-        if cached_result is not None:
-            return cached_result
-
-        if not shutil.which("testssl"):
-            self.ptjsonlib.end_error(
-                "testssl.sh is not installed or not found in PATH. Please install it first via `sudo apt install testssl.sh`.",
-                self.args.json)
-            return
-
         def spinner_func(stop_event):
             spinner = itertools.cycle(["|", "/", "-", "\\"])
             spinner_dots = itertools.cycle(["."] * 5 + [".."] * 6 + ["..."] * 7)
@@ -137,9 +121,22 @@ class PtSSL:
                 time.sleep(0.1)
             ptprint(" ", "TEXT", not self.args.json, flush=True, clear_to_eol=True)
 
+        if not shutil.which("testssl"):
+            self.ptjsonlib.end_error("testssl.sh is not installed or not found in PATH. Please install it first via `sudo apt install testssl.sh`.", self.args.json)
+
+        cache_dir = ptmisclib.get_penterep_temp_dir()
+        os.makedirs(cache_dir, exist_ok=True)
+
+        hash_name = hashlib.md5(url.encode("utf-8")).hexdigest()
+        final_cache_file = os.path.join(cache_dir, f"{hash_name}.json")
+        #temp_cache_file = final_cache_file + ".tmp"
+        temp_cache_file = os.path.join(cache_dir, f"{hash_name}_{uuid.uuid4().hex}.tmp")
+        CACHE_EXPIRY_SECONDS = 30 * 60 # 30 mins
+
         if self.args.verbose:
             ptprint(f"Testssl is running, please wait:", "TITLE", not self.args.json, flush=True, clear_to_eol=True, colortext=True, end="")
             sys.stdout.write("\033[?25l")  # Hide cursor
+
         else:
             stop_spinner = threading.Event()
             spinner_thread = threading.Thread(target=spinner_func, args=(stop_spinner,))
@@ -147,25 +144,30 @@ class PtSSL:
             spinner_thread.start()
 
         try:
-            if os.path.exists(temp_cache_file):
-                try:
-                    os.remove(temp_cache_file)
-                except Exception:
-                    pass
+            with self.acquire_testssl_lock(url, cache_dir):
+                cached_result = load_valid_cache(final_cache_file, CACHE_EXPIRY_SECONDS)
+                if cached_result is not None:
+                    return cached_result
 
-            subprocess.run(
-                ["testssl", "--jsonfile", temp_cache_file, "--logfile", "/dev/stdout", url],
-                check=True,
-                bufsize=1,
-                universal_newlines=True,
-                stdout=sys.stdout if self.args.verbose else subprocess.DEVNULL,
-                stderr=sys.stderr if self.args.verbose else subprocess.DEVNULL
-            )
+                if os.path.exists(temp_cache_file):
+                    try:
+                        os.remove(temp_cache_file)
+                    except Exception:
+                        pass
 
-            with open(temp_cache_file, "r") as f:
-                result = json.load(f)
+                subprocess.run(
+                    ["testssl", "--jsonfile", temp_cache_file, "--logfile", "/dev/stdout", url],
+                    check=True,
+                    bufsize=1,
+                    universal_newlines=True,
+                    stdout=sys.stdout if self.args.verbose else subprocess.DEVNULL,
+                    stderr=sys.stderr if self.args.verbose else subprocess.DEVNULL
+                )
 
-            os.replace(temp_cache_file, final_cache_file)
+                with open(temp_cache_file, "r") as f:
+                    result = json.load(f)
+
+                os.replace(temp_cache_file, final_cache_file)
 
             return result
 
@@ -177,6 +179,31 @@ class PtSSL:
             if not self.args.verbose:
                 stop_spinner.set()
                 spinner_thread.join()
+
+    @contextmanager
+    def acquire_testssl_lock(self, url: str, cache_dir: str):
+        """
+        Context manager for exclusive testssl execution per domain.
+
+        If another process is already testing the same URL, this will block
+        until the lock is released. Lock is automatically released when the
+        context exits or if the process is terminated normally.
+
+        Args:
+            url (str): URL/domain to test
+            cache_dir (str): directory for cache and lock files
+        """
+        os.makedirs(cache_dir, exist_ok=True)
+        hash_name = hashlib.md5(url.encode("utf-8")).hexdigest()
+        lock_file_path = os.path.join(cache_dir, f"{hash_name}.lock")
+
+        with open(lock_file_path, "w") as lock_file:
+            fcntl.flock(lock_file, fcntl.LOCK_EX)
+            try:
+                yield
+            finally:
+                # lock automatically released when file is closed
+                pass
 
     def run_single_module(self, module_name: str) -> None:
         """
@@ -208,7 +235,7 @@ class PtSSL:
                     )
 
                 except Exception as e:
-                    print(e)
+                    ptprint(e, "ERROR", not self.args.json)
                     error = e
                 else:
                     error = None

@@ -14,7 +14,6 @@ Usage:
 from ptlibs import ptjsonlib
 from ptlibs.ptprinthelper import ptprint
 
-
 __TESTLABEL__ = "Testing for bugs:"
 
 
@@ -32,7 +31,7 @@ class GT:
         self.helpers = helpers
         self.testssl_result = testssl_result
 
-    def _find_grease(self) -> int:
+    def _find_section_g(self) -> int:
         """
         Runs through JSON file and finds Grease item.
         """
@@ -49,24 +48,25 @@ class GT:
         Flags if bugs were detected.
         1) OK
         2) INFO - prints warning information
-        3) VULN - prints out vulnerable protocol versions
+        3) VULN - prints out vulnerabilities
         """
-        id_grease = self._find_grease()
+        id_grease = self._find_section_g()
         if id_grease == self.ERROR_NUM:
-            self.ptjsonlib.end_error("testssl could not provide cipher list section", self.args.json)
+            ptprint("testssl could not provide grease section", "WARNING", not self.args.json, indent=4)
             return
         item = self.testssl_result[id_grease]
 
         if item["severity"] == "OK":
-            ptprint(f"{item["id"]:<8}  {item["finding"]}", "OK", not self.args.json, indent=4)
+            ptprint(f"{item['id']:<8}  {item['finding']}", "OK", not self.args.json, indent=4)
         elif item["severity"] == "INFO":
-            ptprint(f"{item["id"]:<8}  {item["finding"]}", "WARNING", not self.args.json, indent=4)
+            ptprint(f"{item['id']:<8}  {item['finding']}", "WARNING", not self.args.json, indent=4)
             self.ptjsonlib.add_vulnerability(
-                f'PTV-WEB-MISC-{''.join(ch for ch in item["id"] if ch.isalnum()).upper()}')
+                f"PTV-WEB-MISC-{''.join(ch for ch in item['id'] if ch.isalnum()).upper()}")
+
         else:
-            ptprint(f"{item["id"]:<8}  {item["finding"]}", "VULN", not self.args.json, indent=4)
+            ptprint(f"{item['id']:<8}  {item['finding']}", "VULN", not self.args.json, indent=4)
             self.ptjsonlib.add_vulnerability(
-                f'PTV-WEB-MISC-{''.join(ch for ch in item["id"] if ch.isalnum()).upper()}')
+                f"PTV-WEB-MISC-{''.join(ch for ch in item['id'] if ch.isalnum()).upper()}")
         return
 
 

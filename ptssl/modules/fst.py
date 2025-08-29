@@ -14,8 +14,8 @@ Usage:
 from ptlibs import ptjsonlib
 from ptlibs.ptprinthelper import ptprint
 
-
 __TESTLABEL__ = "Testing if Forward Security is offered:"
+
 
 class FST:
     """
@@ -31,7 +31,7 @@ class FST:
         self.helpers = helpers
         self.testssl_result = testssl_result
 
-    def _find_fs(self) -> int:
+    def _find_section_fs(self) -> int:
         """
         Runs through JSON file and finds FS item.
         """
@@ -48,11 +48,11 @@ class FST:
         Flags if the FS is offered or not.
         1) OK
         2) INFO - prints warning information
-        3) VULN - prints out vulnerable protocol versions
+        3) VULN - prints out vulnerabilities
         """
-        id_fs = self._find_fs()
+        id_fs = self._find_section_fs()
         if id_fs == self.ERROR_NUM:
-            self.ptjsonlib.end_error("testssl could not provide cipher list section", self.args.json)
+            self.ptjsonlib.end_error("testssl could not provide FS section", self.args.json)
             return
         item = self.testssl_result[id_fs]
 
